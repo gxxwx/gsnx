@@ -1,52 +1,41 @@
-import telebot
-from flask import Flask, request
-import os
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils import executor
+import logging
+import asyncio
 
+# Включаем логирование
+logging.basicConfig(level=logging.INFO)
+
+# Твой токен
 TOKEN = "8231522060:AAGU_xc9C5-_CGemECqCVguSb3xEJ8spcck"
-bot = telebot.TeleBot(TOKEN)
-app = Flask(__name__)
 
-# Главная страница
-@app.route("/", methods=["GET"])
-def index():
-    return "✅ Бот работает"
+# Инициализация бота и диспетчера
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
 
-# Вебхук: Telegram отправляет сюда обновления
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    json_str = request.get_data().decode("utf-8")
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return "ok", 200
+# Главное меню (инлайн-кнопки)
+main_menu = InlineKeyboardMarkup(row_width=2)
+main_menu.add(
+    InlineKeyboardButton("📦 Купить доступ", callback_data="buy"),
+    InlineKeyboardButton("📜 Правила", callback_data="rules"),
+    InlineKeyboardButton("ℹ️ Поддержка", url="https://t.me/gsngsupport")
+)
 
-# Команда /start
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    markup = telebot.types.InlineKeyboardMarkup(row_width=2)
-    markup.row(
-        telebot.types.InlineKeyboardButton("🏷 Тарифные планы", callback_data='tariffs'),
-        telebot.types.InlineKeyboardButton("🪪 Моя подписка", callback_data='subscription')
-    )
-    markup.row(
-        telebot.types.InlineKeyboardButton("🔐 Личный кабинет", callback_data='cabinet'),
-        telebot.types.InlineKeyboardButton("👨‍💻 Техподдержка", url='https://t.me/gsnxcom')
-    )
-    bot.send_message(message.chat.id, "👋 Добро пожаловать! Выберите опцию:", reply_markup=markup)
+# Обработка команды /start
+@dp.message_handler(commands=['start'])
+async def start_command(message: types.Message):
+    await message.answer("👋 Добро пожаловать в GSNX!\nВыберите действие ниже:", reply_markup=main_menu)
 
-# Кнопки
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback(call):
-    if call.data == 'tariffs':
-        bot.send_message(call.message.chat.id, "📦 Здесь будут тарифные планы.")
-    elif call.data == 'subscription':
-        bot.send_message(call.message.chat.id, "🪪 Информация о вашей подписке.")
-    elif call.data == 'cabinet':
-        bot.send_message(call.message.chat.id, "🔐 Личный кабинет недоступен.")
+# Обработка кнопок
+@dp.callback_query_handler(lambda call: True)
+async def handle_buttons(call: types.CallbackQuery):
+    if call.data == "buy":
+        await call.message.edit_text("💳 Чтобы купить доступ, отправьте сумму на ... (сюда вставьте инструкцию)")
+    elif call.data == "rules":
+        await call.message.edit_text("📜 Правила:\n1. Не передавайте доступ третьим лицам\n2. ...")
+    await call.answer()
 
-# Настройка вебхука при запуске
-if __name__ == "__main__":
-    url = "https://gsnx.onrender.com"  # Твой домен на Render
-    bot.remove_webhook()
-    bot.set_webhook(url=f"{url}/{TOKEN}")
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host="0.0.0.0", port=port)
+# Запуск бота
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)
